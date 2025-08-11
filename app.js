@@ -20,6 +20,10 @@ const saleItems = document.getElementById('saleItems');
 const totalAmount = document.getElementById('totalAmount');
 const completeSaleBtn = document.getElementById('completeSale');
 const searchInput = document.getElementById('searchInput');
+const amountGivenInput = document.getElementById('amountGiven');
+const changeAmountSpan = document.getElementById('changeAmount');
+const paymentMethodInputs = document.querySelectorAll('input[name="paymentMethod"]');
+const cashPaymentDiv = document.getElementById('cashPayment');
 
 // Current sale items and products list
 let currentSale = [];
@@ -165,6 +169,9 @@ function updateSaleDisplay() {
     });
     
     totalAmount.textContent = total.toFixed(2);
+    
+    // Recalculate change when sale total changes
+    calculateChange();
 }
 
 // Update product quantity in sale
@@ -228,6 +235,41 @@ function normalizeSaleData(saleData) {
     };
 }
 
+// Calculate change based on amount given and total
+function calculateChange() {
+    if (!cashPaymentDiv.style.display || cashPaymentDiv.style.display === 'none') {
+        return;
+    }
+    
+    const total = parseFloat(totalAmount.textContent) || 0;
+    const amountGiven = parseFloat(amountGivenInput.value) || 0;
+    const change = Math.max(0, (amountGiven - total).toFixed(2));
+    
+    if (amountGiven >= total) {
+        changeAmountSpan.textContent = `$${change}`;
+        changeAmountSpan.style.color = '#2ecc71'; // Green color for positive change
+    } else {
+        const remaining = (total - amountGiven).toFixed(2);
+        changeAmountSpan.textContent = `-$${remaining}`;
+        changeAmountSpan.style.color = '#e74c3c'; // Red color for amount still due
+    }
+}
+
+// Update payment method UI
+function updatePaymentMethod() {
+    const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+    
+    if (paymentMethod === 'efectivo') {
+        cashPaymentDiv.style.display = 'block';
+        amountGivenInput.focus();
+    } else {
+        cashPaymentDiv.style.display = 'none';
+    }
+    
+    // Recalculate change when payment method changes
+    calculateChange();
+}
+
 // Complete sale
 function completeSale() {
     if (currentSale.length === 0) {
@@ -235,63 +277,72 @@ function completeSale() {
         return;
     }
     
-    if (!confirm('¿Confirmar venta?')) {
+    const total = parseFloat(totalAmount.textContent);
+    const now = new Date();
+    const saleId = now.getTime().toString();
+    
+    // Get the selected payment method
+    const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+    const amountGiven = parseFloat(amountGivenInput.value) || 0;
+    const change = paymentMethod === 'efectivo' ? Math.max(0, (amountGiven - total).toFixed(2)) : 0;
+    
+    // Validate cash payment
+    if (paymentMethod === 'efectivo' && (isNaN(amountGiven) || amountGiven < total)) {
+        alert('La cantidad recibida debe ser mayor o igual al total');
         return;
     }
     
-    const userId = 'fLkZ5tugD0WfLzgfaYyF4XKNUfy1';
-    const saleRef = database.ref(`sales/${userId}`).push();
-    const saleId = saleRef.key;
-    const now = Date.now();
-    
-    // Create initial sale data
     const saleData = {
         id: saleId,
-        createdAt: now,
-        discount: 0,
-        discountType: 'percentage',
+        date: now.toISOString(),
         items: currentSale.map(item => ({
+            id: item.id,
             name: item.name,
-            price: parseFloat(item.price),
-            productId: item.id,
-            quantity: parseInt(item.quantity),
-            subtotal: (parseFloat(item.price) * parseInt(item.quantity)).toFixed(2)
+            price: item.price,
+            quantity: item.quantity
         })),
-        paymentMethod: 'Efectivo',
-        updatedAt: now
+        total: total,
+        paymentMethod: paymentMethod,
+        amountGiven: paymentMethod === 'efectivo' ? parseFloat(amountGiven.toFixed(2)) : total,
+        change: parseFloat(change),
+        timestamp: firebase.database.ServerValue.TIMESTAMP
     };
     
-    // Calculate totals
-    saleData.subtotal = saleData.items.reduce((sum, item) => 
-        sum + (parseFloat(item.price) * parseInt(item.quantity)), 0);
-    saleData.total = saleData.subtotal - saleData.discount;
+    const userId = 'fLkZ5tugD0WfLzgfaYyF4XKNUfy1'; // Same user ID as in loadProducts
+    const salesRef = database.ref(`sales/${userId}/${saleId}`);
     
-    // Normalize the sale data to ensure consistency
-    const normalizedSaleData = normalizeSaleData(saleData);
-    
-    // Save sale
-    saleRef.set(normalizedSaleData)
+    // Save sale to Firebase
+    salesRef.set(saleData)
         .then(() => {
-            // Update product stock
+            // Update product stock in Firebase
             const updates = {};
             currentSale.forEach(item => {
-                const productPath = `products/${userId}/${item.id}`;
-                updates[`${productPath}/stock`] = firebase.database.ServerValue.increment(-item.quantity);
-                updates[`${productPath}/updatedAt`] = now;
+                updates[`products/${userId}/${item.id}/stock`] = item.stock - item.quantity;
             });
             
             return database.ref().update(updates);
         })
         .then(() => {
-            alert('Venta completada con éxito');
+            // Show success message with sale details
+            const paymentDetails = paymentMethod === 'efectivo' 
+                ? `Pago en efectivo. Recibido: $${amountGiven.toFixed(2)}, Cambio: $${change}`
+                : 'Pago con tarjeta';
+            
+            alert(`Venta completada exitosamente!\nTotal: $${total.toFixed(2)}\n${paymentDetails}`);
+            
+            // Reset the sale
             currentSale = [];
             updateSaleDisplay();
-            searchInput.value = '';
-            loadProducts();
+            amountGivenInput.value = '';
+            changeAmountSpan.textContent = '$0.00';
+            
+            // Reset to cash payment by default
+            document.querySelector('input[value="efectivo"]').checked = true;
+            updatePaymentMethod();
         })
         .catch(error => {
             console.error('Error al completar la venta:', error);
-            alert('Error al completar la venta. Por favor, intente nuevamente.');
+            alert('Ocurrió un error al completar la venta. Por favor, inténtalo de nuevo.');
         });
 }
 
@@ -317,4 +368,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProducts();
     completeSaleBtn.addEventListener('click', completeSale);
     searchInput.addEventListener('input', handleSearch);
+    
+    // Add event listeners for payment method changes
+    paymentMethodInputs.forEach(input => {
+        input.addEventListener('change', updatePaymentMethod);
+    });
+    
+    // Add event listener for amount given input
+    amountGivenInput.addEventListener('input', calculateChange);
 });
