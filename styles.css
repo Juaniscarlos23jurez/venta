@@ -164,6 +164,73 @@ h2 {
     color: #2c3e50;
 }
 
+/* Payment method styles */
+.payment-method {
+    margin: 20px 0;
+    display: flex;
+    gap: 20px;
+    padding: 10px 0;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+}
+
+.payment-method label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.payment-method input[type="radio"] {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.payment-details {
+    margin: 15px 0;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    border: 1px solid #eee;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+}
+
+.form-group input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+.form-group input[type="number"]:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+#changeAmount {
+    font-weight: bold;
+    color: #2ecc71;
+    font-size: 1.1em;
+}
+
 /* Buttons */
 .btn {
     padding: 10px 15px;
@@ -229,3 +296,4 @@ input[type="number"] {
 .product-card, .sale-item {
     animation: fadeIn 0.3s ease-out forwards;
 }
+
