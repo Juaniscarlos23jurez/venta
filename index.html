@@ -14,6 +14,10 @@
     <div class="container">
         <header>
             <h1>Sistema de Venta</h1>
+            <nav>
+                <button id="showSaleView" class="nav-btn active">Nueva Venta</button>
+                <button id="showHistoryView" class="nav-btn">Historial</button>
+            </nav>
         </header>
         
         <div class="sale-container">
@@ -60,6 +64,18 @@
                 
                 <button id="completeSale" class="btn-primary">Completar Venta</button>
             </div>
+        </div>
+    </div>
+
+    <div class="history-container" style="display: none;">
+        <h2>Historial de Ventas</h2>
+        <div class="sales-list" id="salesList">
+            <!-- Las ventas se cargarán aquí dinámicamente -->
+        </div>
+        <div class="sale-details" id="saleDetails" style="display: none;">
+            <h3>Detalles de la Venta</h3>
+            <div id="saleDetailsContent"></div>
+            <button class="btn-secondary" id="closeSaleDetails">Cerrar</button>
         </div>
     </div>
 
