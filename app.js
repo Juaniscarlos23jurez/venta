@@ -363,11 +363,126 @@ function getNormalizedSales(snapshot) {
     return sales;
 }
 
+// Sales history functions
+function loadSalesHistory() {
+    const userId = 'fLkZ5tugD0WfLzgfaYyF4XKNUfy1';
+    const salesRef = database.ref(`sales/${userId}`);
+    
+    salesRef.orderByChild('timestamp').limitToLast(50).on('value', (snapshot) => {
+        const salesList = document.getElementById('salesList');
+        salesList.innerHTML = '';
+        
+        if (!snapshot.exists()) {
+            salesList.innerHTML = '<p>No hay ventas registradas</p>';
+            return;
+        }
+        
+        const sales = [];
+        snapshot.forEach((childSnapshot) => {
+            sales.push({ id: childSnapshot.key, ...childSnapshot.val() });
+        });
+        
+        // Sort sales by date (most recent first)
+        sales.sort((a, b) => b.timestamp - a.timestamp);
+        
+        sales.forEach(sale => {
+            const saleElement = document.createElement('div');
+            saleElement.className = 'sale-record';
+            const date = new Date(sale.timestamp);
+            saleElement.innerHTML = `
+                <div class="sale-header">
+                    <span class="sale-date">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</span>
+                    <span class="sale-total">$${sale.total.toFixed(2)}</span>
+                </div>
+                <div class="sale-info">
+                    <span class="sale-payment">${sale.paymentMethod === 'efectivo' ? 'Efectivo' : 'Tarjeta'}</span>
+                    <button class="btn-link" onclick="showSaleDetails('${sale.id}')">Ver detalles</button>
+                </div>
+            `;
+            salesList.appendChild(saleElement);
+        });
+    });
+}
+
+function showSaleDetails(saleId) {
+    const userId = 'fLkZ5tugD0WfLzgfaYyF4XKNUfy1';
+    const saleRef = database.ref(`sales/${userId}/${saleId}`);
+    
+    saleRef.once('value').then((snapshot) => {
+        const sale = snapshot.val();
+        if (!sale) return;
+        
+        const detailsContent = document.getElementById('saleDetailsContent');
+        const date = new Date(sale.timestamp);
+        
+        let itemsHtml = '';
+        sale.items.forEach(item => {
+            itemsHtml += `
+                <div class="sale-item-detail">
+                    <span>${item.name}</span>
+                    <span>${item.quantity}x $${item.price.toFixed(2)}</span>
+                    <span>$${(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+            `;
+        });
+        
+        detailsContent.innerHTML = `
+            <div class="sale-detail-header">
+                <p>Fecha: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}</p>
+                <p>Método de pago: ${sale.paymentMethod === 'efectivo' ? 'Efectivo' : 'Tarjeta'}</p>
+            </div>
+            <div class="sale-items-details">
+                ${itemsHtml}
+            </div>
+            <div class="sale-detail-footer">
+                <p>Total: $${sale.total.toFixed(2)}</p>
+                ${sale.paymentMethod === 'efectivo' ? `
+                    <p>Recibido: $${sale.amountGiven.toFixed(2)}</p>
+                    <p>Cambio: $${sale.change.toFixed(2)}</p>
+                ` : ''}
+            </div>
+        `;
+        
+        document.getElementById('saleDetails').style.display = 'block';
+    });
+}
+
+// View switching functions
+function showSaleView() {
+    // Show sale container and hide history container
+    document.querySelector('.sale-container').style.display = 'grid';
+    document.querySelector('.history-container').style.display = 'none';
+    
+    // Update active state of navigation buttons
+    document.getElementById('showSaleView').classList.add('active');
+    document.getElementById('showHistoryView').classList.remove('active');
+}
+
+function showHistoryView() {
+    // Hide sale container and show history container
+    document.querySelector('.sale-container').style.display = 'none';
+    document.querySelector('.history-container').style.display = 'block';
+    
+    // Update active state of navigation buttons
+    document.getElementById('showHistoryView').classList.add('active');
+    document.getElementById('showSaleView').classList.remove('active');
+    
+    // Load sales history when switching to history view
+    loadSalesHistory();
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     loadProducts();
     completeSaleBtn.addEventListener('click', completeSale);
     searchInput.addEventListener('input', handleSearch);
+    
+    // Navigation event listeners
+    document.getElementById('showSaleView').addEventListener('click', showSaleView);
+    document.getElementById('showHistoryView').addEventListener('click', showHistoryView);
+    document.getElementById('closeSaleDetails').addEventListener('click', () => {
+        document.getElementById('saleDetails').style.display = 'none';
+    });
     
     // Add event listeners for payment method changes
     paymentMethodInputs.forEach(input => {
@@ -377,3 +492,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add event listener for amount given input
     amountGivenInput.addEventListener('input', calculateChange);
 });
+
