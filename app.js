@@ -471,25 +471,26 @@ function showHistoryView() {
     loadSalesHistory();
 }
 
+// Reports functionality has been moved to reports.js
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    loadProducts();
-    completeSaleBtn.addEventListener('click', completeSale);
-    searchInput.addEventListener('input', handleSearch);
-    
-    // Navigation event listeners
-    document.getElementById('showSaleView').addEventListener('click', showSaleView);
-    document.getElementById('showHistoryView').addEventListener('click', showHistoryView);
-    document.getElementById('closeSaleDetails').addEventListener('click', () => {
-        document.getElementById('saleDetails').style.display = 'none';
-    });
-    
-    // Add event listeners for payment method changes
-    paymentMethodInputs.forEach(input => {
-        input.addEventListener('change', updatePaymentMethod);
-    });
-    
-    // Add event listener for amount given input
-    amountGivenInput.addEventListener('input', calculateChange);
+        // Initialize the sales page
+    if (document.getElementById('showSaleView')) {
+        loadProducts();
+        completeSaleBtn.addEventListener('click', completeSale);
+        amountGivenInput.addEventListener('input', calculateChange);
+        document.getElementById('searchInput').addEventListener('input', handleSearch);
+        document.getElementById('showSaleView').addEventListener('click', showSaleView);
+        document.getElementById('showHistoryView').addEventListener('click', showHistoryView);
+        document.getElementById('closeSaleDetails').addEventListener('click', () => {
+            document.getElementById('saleDetails').style.display = 'none';
+        });
+        
+        // Initialize payment method UI
+        document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
+            radio.addEventListener('change', updatePaymentMethod);
+        });
+    }
 });
 
