@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregar Venta - Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase App -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <!-- Firebase Database -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container admin-sale-container">
+        <header>
+            <h1><i class="fas fa-cash-register"></i> Agregar Venta Atrasada</h1>
+            <nav>
+                <a href="reportes.html" class="nav-btn"><i class="fas fa-arrow-left"></i> Regresar a Reportes</a>
+            </nav>
+        </header>
+
+        <div class="admin-sale-content">
+            <div class="products-section">
+                <div class="search-container">
+                    <h2>Productos</h2>
+                    <input type="text" id="searchInput" placeholder="Buscar productos..." class="search-input">
+                </div>
+                <div class="product-list" id="productList">
+                    <!-- Los productos se cargarán aquí dinámicamente -->
+                    <div class="loading-products">Cargando productos...</div>
+                </div>
+            </div>
+            
+            <div class="sale-section">
+                <div class="sale-header">
+                    <h2>Venta</h2>
+                    <div class="sale-meta">
+                        <div class="form-group">
+                            <label for="saleDate">Fecha:</label>
+                            <input type="date" id="saleDate" class="date-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="saleTime">Hora:</label>
+                            <input type="time" id="saleTime" class="time-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sale-items" id="saleItems">
+                    <div class="empty-cart">
+                        <i class="fas fa-shopping-cart"></i>
+                        <p>No hay productos en la venta</p>
+                    </div>
+                </div>
+
+                <div class="sale-total">
+                    <h3>Total: $<span id="totalAmount">0.00</span></h3>
+                </div>
+                
+                <div class="payment-method">
+                    <label class="payment-option">
+                        <input type="radio" name="paymentMethod" value="efectivo" checked>
+                        <span class="payment-icon"><i class="fas fa-money-bill-wave"></i></span>
+                        <span>Efectivo</span>
+                    </label>
+                    <label class="payment-option">
+                        <input type="radio" name="paymentMethod" value="tarjeta">
+                        <span class="payment-icon"><i class="fas fa-credit-card"></i></span>
+                        <span>Tarjeta</span>
+                    </label>
+                </div>
+                
+                <div class="payment-details" id="cashPayment">
+                    <div class="form-group">
+                        <label for="amountGiven">Cantidad Recibida:</label>
+                        <input type="number" id="amountGiven" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Cambio:</label>
+                        <span id="changeAmount">$0.00</span>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" id="cancelBtn" class="btn-secondary">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="button" id="completeSale" class="btn-primary">
+                        <i class="fas fa-save"></i> Guardar Venta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCR7Z_Z-iizQh5MN3Al1GtrjuU5G4GZYXs",
+            authDomain: "finansas-mvapq7.firebaseapp.com",
+            databaseURL: "https://finansas-mvapq7-default-rtdb.firebaseio.com",
+            projectId: "finansas-mvapq7",
+            storageBucket: "finansas-mvapq7.firebasestorage.app",
+            messagingSenderId: "518436904271",
+            appId: "1:518436904271:web:5264f3bbafd850e594b93a"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig, 'AdminSaleApp');
+        const database = app.database();
+
+        // Global variables
+        let products = [];
+        let cart = [];
+        let filteredProducts = [];
+
+        // DOM Elements
+        const productListEl = document.getElementById('productList');
+        const saleItemsEl = document.getElementById('saleItems');
+        const totalAmountEl = document.getElementById('totalAmount');
+        const searchInput = document.getElementById('searchInput');
+        const amountGivenInput = document.getElementById('amountGiven');
+        const changeAmountEl = document.getElementById('changeAmount');
+        const paymentMethodInputs = document.querySelectorAll('input[name="paymentMethod"]');
+        const completeSaleBtn = document.getElementById('completeSale');
+        const cancelBtn = document.getElementById('cancelBtn');
+
+        // Set default date and time
+        function setDefaultDateTime() {
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const timeStr = now.toTimeString().slice(0, 5);
+            
+            document.getElementById('saleDate').value = dateStr;
+            document.getElementById('saleTime').value = timeStr;
+        }
+
+        // Load products from Firebase
+        async function loadProducts() {
+            try {
+                const userId = 'fLkZ5tugD0WfLzgfaYyF4XKNUfy1'; // Same user ID as in app.js
+                const snapshot = await database.ref(`products/${userId}`).once('value');
+                products = [];
+                const productsData = snapshot.val();
+                
+                if (productsData) {
+                    Object.entries(productsData).forEach(([key, product]) => {
+                        if (product.stock > 0 && product.isAvailable) {
+                            products.push({
+                                id: key,
+                                name: product.name,
+                                price: product.price,
+                                stock: product.stock,
+                                category: product.category || ''
+                            });
+                        }
+                    });
+                }
+                
+                filteredProducts = [...products];
+                renderProducts();
+            } catch (error) {
+                console.error('Error loading products:', error);
+                alert('Error al cargar los productos. Por favor, intente de nuevo.');
+            }
+        }
+
+        // Render products
+        function renderProducts() {
+            if (filteredProducts.length === 0) {
+                productListEl.innerHTML = '<div class="no-products">No se encontraron productos</div>';
+                return;
+            }
+
+            productListEl.innerHTML = filteredProducts.map(product => `
+                <div class="product-card" data-id="${product.id}">
+                    <h3>${product.name}</h3>
+                    <p class="product-price">$${product.price.toFixed(2)}</p>
+                    ${product.stock ? `<p class="product-stock">${product.stock} disponibles</p>` : ''}
+                    <button class="add-to-cart-btn" data-id="${product.id}">
+                        <i class="fas fa-plus"></i> Agregar
+                    </button>
+                </div>
+            `).join('');
+
+            // Add event listeners to add to cart buttons
+            document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const productId = button.dataset.id;
+                    addToCart(productId);
+                });
+            });
+        }
+
+        // Add product to cart
+        function addToCart(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            const existingItem = cart.find(item => item.id === productId);
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                cart.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    quantity: 1
+                });
+            }
+            
+            renderCart();
+            updateTotal();
+        }
+
+        // Render cart
+        function renderCart() {
+            if (cart.length === 0) {
+                saleItemsEl.innerHTML = `
+                    <div class="empty-cart">
+                        <i class="fas fa-shopping-cart"></i>
+                        <p>No hay productos en la venta</p>
+                    </div>
+                `;
+                return;
+            }
+
+            saleItemsEl.innerHTML = `
+                <table class="cart-table">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Precio</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${cart.map((item, index) => `
+                            <tr>
+                                <td>${item.name}</td>
+                                <td class="quantity-cell">
+                                    <button class="quantity-btn" data-index="${index}" data-action="decrease">-</button>
+                                    <span>${item.quantity}</span>
+                                    <button class="quantity-btn" data-index="${index}" data-action="increase">+</button>
+                                </td>
+                                <td>$${item.price.toFixed(2)}</td>
+                                <td>$${(item.price * item.quantity).toFixed(2)}</td>
+                                <td>
+                                    <button class="remove-item-btn" data-index="${index}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            // Add event listeners for quantity buttons
+            document.querySelectorAll('.quantity-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const index = parseInt(button.dataset.index);
+                    const action = button.dataset.action;
+                    updateQuantity(index, action);
+                });
+            });
+
+            // Add event listeners for remove buttons
+            document.querySelectorAll('.remove-item-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const index = parseInt(button.dataset.index);
+                    removeFromCart(index);
+                });
+            });
+        }
+
+        // Update item quantity
+        function updateQuantity(index, action) {
+            if (index < 0 || index >= cart.length) return;
+            
+            if (action === 'increase') {
+                cart[index].quantity += 1;
+            } else if (action === 'decrease') {
+                if (cart[index].quantity > 1) {
+                    cart[index].quantity -= 1;
+                } else {
+                    cart.splice(index, 1);
+                }
+            }
+            
+            renderCart();
+            updateTotal();
+        }
+
+        // Remove item from cart
+        function removeFromCart(index) {
+            if (index >= 0 && index < cart.length) {
+                cart.splice(index, 1);
+                renderCart();
+                updateTotal();
+            }
+        }
+
+        // Update total amount
+        function updateTotal() {
+            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            totalAmountEl.textContent = total.toFixed(2);
+            updateChangeAmount();
+        }
+
+        // Update change amount
+        function updateChangeAmount() {
+            const total = parseFloat(totalAmountEl.textContent) || 0;
+            const amountGiven = parseFloat(amountGivenInput.value) || 0;
+            const change = amountGiven - total;
+            
+            changeAmountEl.textContent = `$${Math.max(0, change).toFixed(2)}`;
+            changeAmountEl.className = change >= 0 ? 'positive' : 'negative';
+        }
+
+        // Complete sale
+        async function completeSale() {
+            if (cart.length === 0) {
+                alert('Agregue al menos un producto a la venta');
+                return;
+            }
+
+            const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+            const amountGiven = parseFloat(amountGivenInput.value) || 0;
+            const total = parseFloat(totalAmountEl.textContent);
+            
+            if (paymentMethod === 'efectivo' && amountGiven < total) {
+                alert('La cantidad recibida debe ser mayor o igual al total');
+                return;
+            }
+
+            // Get sale date and time
+            const saleDate = document.getElementById('saleDate').value;
+            const saleTime = document.getElementById('saleTime').value;
+            const saleDateTime = new Date(`${saleDate}T${saleTime}:00`);
+            const timestamp = saleDateTime.getTime();
+
+            // Prepare sale data
+            const saleData = {
+                items: cart.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    price: item.price,
+                    quantity: item.quantity
+                })),
+                total: total,
+                paymentMethod: paymentMethod,
+                timestamp: timestamp,
+                amountGiven: paymentMethod === 'efectivo' ? amountGiven : total,
+                change: paymentMethod === 'efectivo' ? (amountGiven - total) : 0,
+                isBackdated: true
+            };
+
+            try {
+                // Save sale to Firebase
+                const userId = 'fLkZ5tugD0WfLzgfaYyF4XKNUfy1';
+                await database.ref(`sales/${userId}`).push(saleData);
+                
+                alert('Venta guardada exitosamente');
+                window.location.href = 'reportes.html';
+            } catch (error) {
+                console.error('Error al guardar la venta:', error);
+                alert('Error al guardar la venta. Por favor, intente de nuevo.');
+            }
+        }
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', () => {
+            setDefaultDateTime();
+            loadProducts();
+
+            // Event listeners
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                filteredProducts = products.filter(product => 
+                    product.name.toLowerCase().includes(searchTerm) ||
+                    (product.barcode && product.barcode.includes(searchTerm))
+                );
+                renderProducts();
+            });
+
+            amountGivenInput.addEventListener('input', updateChangeAmount);
+            
+            paymentMethodInputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const cashPayment = document.getElementById('cashPayment');
+                    cashPayment.style.display = e.target.value === 'efectivo' ? 'block' : 'none';
+                });
+            });
+
+            completeSaleBtn.addEventListener('click', completeSale);
+            
+            cancelBtn.addEventListener('click', () => {
+                if (cart.length > 0 && !confirm('¿Está seguro de que desea cancelar? Se perderán los productos de la venta actual.')) {
+                    return;
+                }
+                window.location.href = 'reportes.html';
+            });
+        });
+    </script>
+</body>
+</html>
